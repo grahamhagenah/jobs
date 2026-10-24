@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="Jobs">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Boards</title>
+<style>
+  html { background: #000; }
+  /* Nothing scrolls the page sideways on a phone, whatever runs wide. */
+  body { margin: 0; padding: 2rem 1.25rem 4rem; overflow-x: clip; color: #fff; background: #000;
+         font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+  .header-note { color: #666; font-size: .8rem; white-space: nowrap; }
+  .header-note time { margin: 0; font-size: inherit; }
+  /* The newsfeed and the events page, as a pair: the one you're on in white, the other a gray link to it. */
+  .sites { display: flex; gap: .9rem; }
+  .sites a, .sites a:visited { color: #555; font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; text-decoration: none; }
+  .sites a:hover { color: #999; }
+  .sites a[aria-current], .sites a[aria-current]:hover { color: #fff; }
+
+  /* Its choices at the top of the row, as a link sits, so a page whose choices are buttons (which center
+     their text in the row's height, set by the menu and search) puts them at the same height as one of links. */
+  .filter { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .4rem 1.1rem; margin: -.75rem 0 1.75rem; }
+  .filter button, .filter a { padding: 0; border: 0; background: none; color: #666; font: inherit; font-size: .8rem;
+                              text-decoration: none; cursor: pointer; }
+  .filter button:hover, .filter a:hover { color: #999; text-decoration: none; }
+  .filter button[aria-pressed="true"], .filter a[aria-current="page"] { color: #fff; }
+  .filter .icon { margin-right: .4em; vertical-align: -1px; }
+  @media (max-width: 34rem) { .filter { column-gap: .9rem; } .filter button, .filter a { font-size: .95rem; } }
+  /* Whatever the filter and pager hide stays hidden, however specific the rules that lay it out. */
+  [hidden] { display: none !important; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  /* Rows: the headline first, led by its kind's icon and one line tall, with its details after it, and where it's
+     from at the end of the row, where those line up down the page to be scanned. The parts are set down with
+     spaces between them, which the columns ignore and a phone's line of text breaks at. */
+  .row { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .6rem; align-items: baseline;
+         padding: .4rem 0; }
+  .row > .icon { align-self: center; }
+  .symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
+  .icon { flex: none; width: 12px; height: 12px; }
+  .source { display: flex; justify-content: flex-end; align-items: center; min-width: 0; max-width: 14rem; color: #666;
+            font-size: .8em; text-align: right; }
+  .source > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .headline { display: flex; align-items: baseline; min-width: 0; position: relative; }
+  .headline .title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* A headline's preview, opening under it (or over it, near the bottom of the window) after a short hover. */
+  .preview { position: absolute; z-index: 1; top: calc(100% + .5rem); left: -1rem; width: min(34rem, calc(100% + 1rem));
+             box-sizing: border-box; padding: .9rem 1rem; background: #000; border: 1px solid #333; border-radius: 6px;
+             color: #bbb; font-size: .85em; font-weight: normal; line-height: 1.5; white-space: normal; pointer-events: none;
+             visibility: hidden; opacity: 0; transition: opacity .1s, visibility 0s .1s; }
+  .preview.above { top: auto; bottom: calc(100% + .5rem); }
+  .preview p { margin: 0 0 .7em; }
+  .preview p:last-child { margin-bottom: 0; }
+  .preview .full-title { display: none; color: #fff; }
+  .truncated .preview .full-title { display: block; }
+  .headline:not(.truncated) .preview.title-only { display: none; }
+  .headline .title:hover ~ .preview { visibility: visible; opacity: 1; transition: opacity .1s .4s, visibility 0s .4s; }
+  @media (hover: none), (max-width: 34rem) { .preview { display: none; } }
+  /* The search, at the end of the filter's row and as quiet as the filter. */
+  .search { margin-left: auto; width: 10rem; padding: 0 0 .15rem; border: 0; border-bottom: 1px solid #333;
+            border-radius: 0; background: none; color: #fff; font: inherit; font-size: .8rem; outline: none;
+            -webkit-appearance: none; appearance: none; }
+  .search::placeholder { color: #555; }
+  .search:focus { border-bottom-color: #777; }
+  .search::-webkit-search-cancel-button { display: none; }
+  /* A menu beside it (the events' venues, the newsfeed's sources), as quiet as the filter: a small arrow
+     after it, and white once something's chosen. As wide as what's chosen, where the browser can size it so. */
+  .pick { max-width: 12rem; padding: 0 1.05em 0 0; border: 0; border-radius: 0; color: #666;
+          background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23666' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right center / .6em;
+          font: inherit; font-size: .8rem; text-overflow: ellipsis; cursor: pointer; field-sizing: content;
+          -webkit-appearance: none; appearance: none; }
+  .pick:hover { color: #999; }
+  .pick.chosen { color: #fff; }
+  .pick:focus-visible { outline: 1px solid #444; outline-offset: 3px; }
+  .pick option { background: #000; color: #fff; }
+  /* The menu and the search, together at the end of the filter's row. On a phone they're on a line of their
+     own under it, from the left, the search taking the rest of it, at 16px, since iPhones zoom in on a smaller
+     field when it's tapped. Neither may push the line wider than the screen: a long name ends in "…" past 60%
+     of it, and the search takes whatever's left. */
+  .finders { display: flex; align-items: baseline; gap: 1.4rem; margin-left: auto; }
+  .finders .search { margin-left: 0; }
+  @media (max-width: 34rem) {
+    .finders { flex-basis: 100%; min-width: 0; gap: 1.1rem; margin: .4rem 0 0; }
+    .finders .search { flex: 1 1 0; min-width: 3rem; width: 0; font-size: 1rem; }
+    .pick { flex: 0 1 auto; min-width: 0; max-width: 60%; font-size: 1rem; }
+  }
+  .pager { display: flex; justify-content: space-between; margin-top: 2.5rem; color: #666; font-size: .8rem; }
+  .pager a, .pager a:visited { color: #999; }
+  .empty { color: #666; font-size: .9rem; }
+  /* Back to the top: a quiet arrow in the corner, faded in once the page has been scrolled a screen or so. */
+  .to-top { position: fixed; z-index: 2; right: max(1.5rem, env(safe-area-inset-right)); bottom: max(1.5rem, env(safe-area-inset-bottom));
+            display: grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid #262626;
+            border-radius: 50%; background: rgba(0, 0, 0, .8); color: #777; cursor: pointer;
+            opacity: 0; visibility: hidden; transition: opacity .2s, visibility 0s .2s, color .15s, border-color .15s; }
+  .to-top.shown { opacity: 1; visibility: visible; transition: opacity .2s, color .15s, border-color .15s; }
+  .to-top:hover, .to-top:focus-visible { color: #ddd; border-color: #444; outline: none; }
+  .to-top svg { width: 14px; height: 14px; }
+  @media (max-width: 34rem) { .to-top { right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); } }
+  a { color: #fff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { margin-top: 4rem; color: #666; font-size: .8em; }
+  footer p { margin: .4rem 0; }
+  footer a, footer a:visited { color: #999; text-decoration: underline; text-decoration-color: #555; text-underline-offset: .2em; }
+  @media (max-width: 34rem) {
+    /* Too narrow for columns, so a row reads as a line instead, wrapping where a sentence would, with the icon
+       in a slot at the left edge beside its first line: a size that holds its own beside the headline, a clear
+       space after it, and set by the middle of the letters rather than the middle of the line, which sits low
+       by the depth of a descender. The spaces between the parts are where the line breaks, so the room after the
+       headline goes at its end, out of sight when the line breaks there; the small grey parts after it are
+       spaced by their spaces alone. */
+    .row { display: block; padding-left: calc(14px + .7em); }
+    .row > .icon { position: absolute; left: 0; width: 14px; height: 14px; top: calc(.4rem + .72em - 7px); }
+    .headline, .headline .title { display: inline; }
+    .headline .title { white-space: normal; }
+    .headline > .title { margin-right: .3em; }
+    .source { display: inline; max-width: none; text-align: left; }
+    .source > span { display: inline; overflow: visible; white-space: normal; }
+  }
+
+  /* The kinds' marks: green for building it, violet for designing it, amber for the work around it. Where
+     it's worked isn't one of them — that's the city at the end of the row, "Remote" among the rest. */
+  :root { --engineering: #34d399; --design: #a78bfa; --product: #fbbf24; }
+  h1 { margin: 3rem 0 .75rem; color: #777; font-size: .75rem; font-weight: 600;
+       letter-spacing: .08em; text-transform: uppercase; }
+  h1:first-child, header + h1 { margin-top: 0; }
+  .filter [data-show="engineering"] .icon { color: var(--engineering); }
+  .filter [data-show="design"] .icon { color: var(--design); }
+  .filter [data-show="product"] .icon { color: var(--product); }
+  li { padding: .4rem 0; }
+  /* Until the script picks the page, show the first one, so the whole list never flashes up. */
+  .posts:not(.paged) li:nth-child(n+31) { display: none; }
+  .note, time, .facts { color: #666; font-size: .8em; }
+  /* Who the job is with, beside its title: brighter than the rest of the line, which is detail. */
+  .company { color: #999; font-size: .85em; }
+  .headline time, .headline .facts, .headline .company { flex: none; }
+  .headline > .via { display: none; }
+  /* The parts of a row are flex items, so the spaces between them in the markup don't show: each keeps its
+     own gap from the one before. */
+  time, .facts, .company { margin-left: .6em; white-space: nowrap; }
+  /* Each job's mark: in its kind's color while it's unopened, gray once it's been clicked. */
+  .row > .icon { color: #555; }
+  .unread > .icon { color: var(--engineering); }
+  .row[data-kind="design"].unread > .icon { color: var(--design); }
+  .row[data-kind="product"].unread > .icon { color: var(--product); }
+  @media (max-width: 34rem) {
+    /* A phone's row reads as one line: the title, when it went up, where it is, and who it's with. */
+    .headline > time, .headline > .facts, .headline > .company { margin-left: 0; }
+    .headline > .via { display: inline; color: #666; font-size: .8em; }
+    .facts { white-space: normal; }
+    /* Where it is has already been said in the line, by "in Boston"; the column would say it twice. */
+    .posts .row > .source, .featured .row > .source { display: none; }
+  }
+  /* The few jobs that lead the page: the same rows, set apart by the heading above them. Why a job is here
+     takes more words than the small print of an ordinary row, and the parts of a headline share one line —
+     so it goes on a line of its own underneath, where it can't squeeze the title out of its own row. */
+  .featured { margin-bottom: 1rem; }
+  /* Only the up and down of it: a phone's row keeps a left margin for the mark beside its first line. */
+  .featured .row { padding-top: .5rem; padding-bottom: .5rem; }
+  /* How well a featured job fits, at the top of the box that opens under its headline, above what the
+     posting says. The number is the score, and what follows it is what earned it. A phone has no hover and
+     so never opens the box: there, the order the jobs are in is what the score has to say. */
+  .preview .why { display: flex; align-items: baseline; gap: .5em; margin-bottom: .7em; padding-bottom: .6em;
+                  border-bottom: 1px solid #222; color: #999; }
+  .preview .score { flex: none; padding: 0 .45em; border: 1px solid #444; border-radius: 999px;
+                    color: #ddd; font-size: .9em; }
+  .preview .score-said { flex: none; color: #fff; }
+  .preview .score-for { color: #888; }
+  .preview .score-for::before { content: "for "; }
+  /* Where a row is three columns, the mark sits with the title rather than in the middle of a row that may
+     now run to three lines. On a phone the mark is placed against the first line already. */
+  @media (min-width: 34.01rem) {
+    .featured .row > .icon { align-self: start; margin-top: .36em; }
+  }
+  .featured-none { color: #666; font-size: .9rem; }
+  .all-title { margin-top: 2.25rem; }
+  .sources { columns: 2; column-gap: 2.5rem; }
+  .sources li { break-inside: avoid; }
+  @media (max-width: 34rem) { .sources { columns: 1; } }
+  .help { color: #777; font-size: .85em; }
+  .pager { display: flex; justify-content: space-between; margin-top: 2.5rem; color: #666; font-size: .8rem; }
+  .pager a, .pager a:visited { color: #999; }
+  .empty { color: #777; }
+</style>
+</head>
+<body>
+<svg class="symbols" aria-hidden="true"><symbol id="icon-engineering" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6 6.5L4 8l2 1.5M10 6.5L12 8l-2 1.5"/></g></symbol><symbol id="icon-design" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.25"/><circle cx="8" cy="8" r="1.75" fill="currentColor" stroke="none"/></g></symbol><symbol id="icon-product" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.25l5.25 2.75v6L8 13.75 2.75 11V5z"/><path d="M2.75 5L8 7.75 13.25 5M8 7.75v6"/></g></symbol></svg>
+<main>
+<header><nav class="sites" aria-label="Sites"><a href="https://news.grahamhagenah.com/">Newsfeed</a><a href="https://pushpin.city/boston/">Events</a><a href="./" aria-current="page">Jobs</a></nav></header>
+<h1>Where these come from</h1>
+<ul class="sources">
+<li><a href="https://www.builtinboston.com/">Built In Boston</a><span class="note">Boston · 84 jobs</span></li>
+<li><a href="https://www.builtinnyc.com/">Built In NYC</a><span class="note">New York · 59 jobs</span></li>
+<li><a href="https://www.builtinsf.com/">Built In SF</a><span class="note">Bay Area · 37 jobs</span></li>
+<li><a href="https://www.builtinseattle.com/">Built In Seattle</a><span class="note">Seattle · 30 jobs</span></li>
+<li><a href="https://www.builtincolorado.com/">Built In Colorado</a><span class="note">Denver · 35 jobs</span></li>
+<li><a href="https://www.builtinchicago.org/">Built In Chicago</a><span class="note">Chicago · 29 jobs</span></li>
+<li><a href="https://www.builtinaustin.com/">Built In Austin</a><span class="note">Austin · 24 jobs</span></li>
+<li><a href="https://www.builtinla.com/">Built In LA</a><span class="note">Los Angeles · 25 jobs</span></li>
+<li><a href="https://weworkremotely.com/categories/remote-programming-jobs.rss">We Work Remotely</a><span class="note">Remote · 35 jobs</span></li>
+<li><a href="https://weworkremotely.com/categories/remote-design-jobs.rss">We Work Remotely</a><span class="note">Remote · 35 jobs</span></li>
+<li><a href="https://remoteok.com/api">Remote OK</a><span class="note">Remote · 19 jobs</span></li>
+<li><a href="https://remotive.com/api/remote-jobs">Remotive</a><span class="note">Remote · 4 jobs</span></li>
+<li><a href="https://careers.insidehighered.com/">Inside Higher Ed</a><span class="note">Anywhere · 81 jobs</span></li>
+<li><a href="https://jobs.chronicle.com/">The Chronicle of Higher Education</a><span class="note">Anywhere · 68 jobs</span></li>
+<li><a href="https://techjobsforgood.com/">Tech Jobs for Good</a><span class="note">Anywhere · 42 jobs</span></li>
+<li><a href="https://jobs.tufts.edu/">Tufts University</a><span class="note">Anywhere · 1 job</span></li>
+<li><a href="https://jobs.silkroad.com/BU/External">Boston University</a><span class="note">Anywhere · 1 job</span></li>
+<li><a href="https://northeastern.wd1.myworkdayjobs.com/careers">Northeastern University</a><span class="note">Anywhere · 14 jobs</span></li>
+<li><a href="https://brandeis.wd5.myworkdayjobs.com/Jobs">Brandeis University</a><span class="note">Anywhere · 4 jobs</span></li>
+<li><a href="https://brown.wd5.myworkdayjobs.com/staff-careers-brown">Brown University</a><span class="note">Providence · 3 jobs</span></li>
+<li><a href="https://cmu.wd115.myworkdayjobs.com/CMU">Carnegie Mellon University</a><span class="note">Anywhere · 19 jobs</span></li>
+<li><a href="https://uchicago.wd5.myworkdayjobs.com/External">University of Chicago</a><span class="note">Anywhere · 16 jobs</span></li>
+<li><a href="https://wustl.wd1.myworkdayjobs.com/External">Washington University in St. Louis</a><span class="note">Anywhere · 6 jobs</span></li>
+<li><a href="https://osu.wd1.myworkdayjobs.com/OSUCareers">Ohio State University</a><span class="note">Anywhere · 6 jobs</span></li>
+<li><a href="https://umd.wd1.myworkdayjobs.com/UMCP">University of Maryland</a><span class="note">Washington, DC · 7 jobs</span></li>
+<li><a href="https://georgetown.wd1.myworkdayjobs.com/Georgetown_Admin_Careers">Georgetown University</a><span class="note">Washington, DC · 4 jobs</span></li>
+<li><a href="https://rit.wd12.myworkdayjobs.com/careers">Rochester Institute of Technology</a><span class="note">Anywhere · 2 jobs</span></li>
+<li><a href="https://smithcollege.wd5.myworkdayjobs.com/smithcollege">Smith College</a><span class="note">Anywhere · 4 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/aclu">ACLU</a><span class="note">Anywhere · 0 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/wikimedia">Wikimedia Foundation</a><span class="note">Anywhere · 7 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/codeforamerica">Code for America</a><span class="note">Anywhere · 3 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/khanacademy">Khan Academy</a><span class="note">Anywhere · 0 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/donorschoose">DonorsChoose</a><span class="note">Anywhere · 0 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/propublica">ProPublica</a><span class="note">Anywhere · 1 job</span></li>
+<li><a href="https://job-boards.greenhouse.io/consumerreports">Consumer Reports</a><span class="note">Anywhere · 0 jobs</span></li>
+<li><a href="https://job-boards.greenhouse.io/humanrightswatch">Human Rights Watch</a><span class="note">Anywhere · 0 jobs</span></li>
+<li><a href="https://massgeneralbrigham.wd1.myworkdayjobs.com/MGBExternal">Mass General Brigham</a><span class="note">Anywhere · 11 jobs</span></li>
+<li><a href="https://danafarber.wd5.myworkdayjobs.com/dana-farber">Dana-Farber</a><span class="note">Anywhere · 2 jobs</span></li>
+<li><a href="https://publicmedia.wd1.myworkdayjobs.com/WGBH_Careers">GBH</a><span class="note">Anywhere · 6 jobs</span></li>
+<li><a href="https://data.usajobs.gov/">USAJOBS</a><span class="note">Anywhere · 17 jobs</span></li>
+</ul>
+<p class="help">Each board is read every build. Only jobs whose titles match
+<a href="https://github.com/grahamhagenah/news/blob/main/jobs/keywords.txt">keywords.txt</a> are listed — web, design, UI, UX, developer,
+JavaScript and the like — so a board's other openings stay off this page.</p>
+
+<h1>Add a board</h1>
+<p class="help">Boards are listed in <a href="https://github.com/grahamhagenah/news/blob/main/jobs/sources.txt">sources.txt</a>, one per
+line: how to read it, its address, the city its jobs are in, and its name.</p>
+
+<h1>Worth a look</h1>
+<p class="help">The jobs leading the page are the ones that score highest against the work this board is
+kept for. What earns a point, and what loses one, is in
+<a href="https://github.com/grahamhagenah/news/blob/main/jobs/fit.txt">fit.txt</a> — hover a score to see why a job got it.</p>
+
+<h1>Export</h1>
+<p>The jobs on the page are also <a href="jobs.json">JSON</a>.</p>
+
+<footer><p>Updated <time class="updated" datetime="2026-10-24T00:00:00-04:00">Oct 24</time> · <a href="./">Back to the jobs</a></p></footer>
+</main>
+<button class="to-top" type="button" aria-label="Back to top"><svg viewBox="0 0 16 16" aria-hidden="true"><path
+  d="M8 13V3.5M3.5 8L8 3.5 12.5 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+  stroke-linejoin="round"/></svg></button>
+<script>
+  {
+    const button = document.querySelector(".to-top");
+    const place = () => button.classList.toggle("shown", scrollY > innerHeight);
+    addEventListener("scroll", place, {passive: true});
+    place();
+    button.addEventListener("click", event => {
+      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      scrollTo({top: 0, behavior: still ? "auto" : "smooth"});
+      if (event.detail === 0) document.querySelector("header a")?.focus({preventScroll: true});
+    });
+  }
+</script>
+<script>
+  for (const t of document.querySelectorAll("time[datetime]")) {
+    const s = Math.max(60, (Date.now() - new Date(t.dateTime)) / 1000);
+    const age = s < 3600 ? Math.round(s / 60) + "m" : s < 86400 ? Math.round(s / 3600) + "h" : Math.round(s / 86400) + "d";
+    t.textContent = t.matches(".updated, .ago") ? age + " ago" : age;
+  }
+</script>
+<script>
+  for (const title of document.querySelectorAll(".headline .title")) {
+    title.addEventListener("mouseenter", () => {
+      const headline = title.closest(".headline");
+      headline.classList.toggle("truncated", title.scrollWidth > title.clientWidth);
+      const preview = headline.querySelector(".preview");
+      if (preview) preview.classList.toggle("above", title.getBoundingClientRect().bottom + preview.offsetHeight + 24 > innerHeight);
+    });
+  }
+</script>
+<script>
+  {
+    const search = document.querySelector(".search");
+    if (search) document.addEventListener("keydown", event => {
+      if (event.key === "/" && document.activeElement !== search && !event.metaKey && !event.ctrlKey
+          && search.offsetParent && !document.querySelector("dialog[open]")) {
+        event.preventDefault();
+        search.focus();
+      } else if (event.key === "Escape" && document.activeElement === search && search.value) {
+        search.value = "";
+        search.dispatchEvent(new Event("input"));
+      }
+    });
+  }
+</script>
+</body>
+</html>
